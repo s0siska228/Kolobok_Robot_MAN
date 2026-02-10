@@ -1,25 +1,29 @@
+#include <Wire.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESP32Servo.h>
 
 // --- НАСТРОЙКИ WI-FI ---
-const char* ssid = "Kolobok_Bot";      // Имя сети
-const char* password = "12345678";     // Пароль
+const char* ssid = "Kolobok_Bot";
+const char* password = "12345678";
 
-// --- ПИНЫ (Настройка GPIO) ---
-// Мотор (L298N)
+// --- ПИНЫ ---
 const int ENA_PIN = 14; // Скорость (ШИМ)
 const int IN1_PIN = 27; // Направление A
 const int IN2_PIN = 26; // Направление B
+const int SERVO_PIN = 13; // Сервопривод
 
-// Сервопривод (Маятник)
-const int SERVO_PIN = 13;
+// --- ПЕРЕМЕННЫЕ АКСЕЛЕРОМЕТРА ---
+const int ADDR = 0x18;
+int16_t currentX = 0;
+float smoothX = 0;
+unsigned long lastPrintTime = 0;
 
 // --- ОБЪЕКТЫ ---
 WebServer server(80);
 Servo myServo;
 
-// --- ВЕБ-ИНТЕРФЕЙС (HTML + CSS + JS ДЖОЙСТИК) ---
+// --- ВЕБ-ИНТЕРФЕЙС ---
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
 <html>
@@ -27,17 +31,15 @@ const char index_html[] PROGMEM = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>KOLOBOK JOYSTICK</title>
   <style>
-    body { 
-      font-family: Arial; 
-      background-color: #222; 
-      color: white; 
+    body {
+      font-family: Arial;
+      background-color: #222;
+      color: white;
       text-align: center;
-      overflow: hidden; /* Запрет прокрутки */
-      user-select: none; /* Запрет выделения */
+      overflow: hidden;
+      user-select: none;
     }
     h2 { color: #04AA6D; margin-top: 10px; }
-    
-    /* Контейнер джойстика */
     #joystick-container {
       position: relative;
       width: 200px;
@@ -46,10 +48,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       background: rgba(255, 255, 255, 0.1);
       border: 2px solid #04AA6D;
       border-radius: 50%;
-      touch-action: none; /* Важно для мобильных! */
+      touch-action: none;
     }
-    
-    /* Сам рычажок */
     #joystick-stick {
       position: absolute;
       left: 50%;
@@ -62,14 +62,12 @@ const char index_html[] PROGMEM = R"rawliteral(
       border-radius: 50%;
       box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
-    
     #status { font-size: 18px; margin-top: 20px; color: #bbb; }
   </style>
 </head>
 <body>
   <h2>KOLOBOK CONTROL</h2>
   <div id="status">STOP</div>
-  
   <div id="joystick-container">
     <div id="joystick-stick"></div>
   </div>
@@ -78,21 +76,13 @@ const char index_html[] PROGMEM = R"rawliteral(
     var container = document.getElementById("joystick-container");
     var stick = document.getElementById("joystick-stick");
     var statusText = document.getElementById("status");
-    
     var isDragging = false;
-    var maxRadius = 70; // Макс. отклонение стика
-    var containerRect = container.getBoundingClientRect();
-    var centerX = containerRect.width / 2;
-    var centerY = containerRect.height / 2;
-    
-    // Переменные для ограничения частоты отправки (чтобы не спамить ESP32)
+    var maxRadius = 70;
     var lastSendTime = 0;
 
-    // --- ОБРАБОТЧИКИ СОБЫТИЙ (TOUCH & MOUSE) ---
     container.addEventListener("touchstart", startDrag);
     container.addEventListener("touchmove", moveDrag);
     container.addEventListener("touchend", endDrag);
-    
     container.addEventListener("mousedown", startDrag);
     document.addEventListener("mousemove", moveDrag);
     document.addEventListener("mouseup", endDrag);
@@ -104,9 +94,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     function moveDrag(e) {
       if (!isDragging) return;
-      e.preventDefault(); // Блокируем скролл страницы
+      e.preventDefault();
 
-      // Получаем координаты пальца/мыши
       var clientX, clientY;
       if (e.touches) {
         clientX = e.touches[0].clientX;
@@ -116,12 +105,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         clientY = e.clientY;
       }
 
-      // Пересчитываем координаты относительно центра круга
       var rect = container.getBoundingClientRect();
+      var centerX = rect.width / 2;
+      var centerY = rect.height / 2;
       var x = clientX - rect.left - centerX;
       var y = clientY - rect.top - centerY;
 
-      // Ограничиваем движение кругом (maxRadius)
       var distance = Math.sqrt(x*x + y*y);
       if (distance > maxRadius) {
         var angle = Math.atan2(y, x);
@@ -129,17 +118,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         y = Math.sin(angle) * maxRadius;
       }
 
-      // Двигаем стик визуально
       stick.style.transform = `translate(${x}px, ${y}px)`;
 
-      // --- КОНВЕРТАЦИЯ В ДАННЫЕ ДЛЯ РОБОТА ---
-      // Y (вверх-вниз) -> Скорость (-255 до 255)
-      // Инвертируем Y, так как в браузере Y=0 сверху
       var speed = Math.round((y / maxRadius) * -255);
-      
-      // X (влево-вправо) -> Угол Серво (45 до 135)
-      // Центр (90) + отклонение
-      var turn = Math.round(90 + (x / maxRadius) * 45); 
+      var turn = Math.round(90 + (x / maxRadius) * 45);
 
       statusText.innerText = "Speed: " + speed + " | Turn: " + turn;
       sendData(speed, turn);
@@ -147,15 +129,12 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     function endDrag() {
       isDragging = false;
-      // Возвращаем стик в центр
       stick.style.transform = `translate(0px, 0px)`;
       statusText.innerText = "STOP";
-      // Отправляем команду остановки
       sendData(0, 90);
     }
 
     function sendData(speed, turn) {
-      // Ограничиваем частоту запросов (не чаще 1 раза в 50мс)
       var now = Date.now();
       if (now - lastSendTime > 50 || speed === 0) {
         var xhr = new XMLHttpRequest();
@@ -170,49 +149,47 @@ const char index_html[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
-  // Настройка пинов
   pinMode(ENA_PIN, OUTPUT);
   pinMode(IN1_PIN, OUTPUT);
   pinMode(IN2_PIN, OUTPUT);
 
   myServo.attach(SERVO_PIN);
-  myServo.write(90); // Маятник прямо
+  myServo.write(90);
 
-  // Запуск Wi-Fi
+  Wire.begin();
+  Wire.beginTransmission(ADDR);
+  Wire.write(0x20);
+  Wire.write(0x57);
+  Wire.endTransmission();
+
   WiFi.softAP(ssid, password);
-  Serial.println("Wi-Fi Started");
-  Serial.println(WiFi.softAPIP());
+  Serial.println("Wi-Fi Started. IP: " + WiFi.softAPIP().toString());
 
-  // Маршруты сервера
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html", index_html);
   });
-
   server.on("/action", HTTP_GET, handleAction);
-
   server.begin();
 }
 
 void loop() {
   server.handleClient();
+  printX();
 }
 
 void handleAction() {
   if (server.hasArg("speed") && server.hasArg("turn")) {
     int speedVal = server.arg("speed").toInt();
     int turnVal = server.arg("turn").toInt();
-    
     controlMotor(speedVal);
     controlServo(turnVal);
-    
     server.send(200, "text/plain", "OK");
   }
 }
 
 void controlMotor(int speed) {
-  // Мертвая зона для слабых значений
   if (abs(speed) < 50) speed = 0;
 
   if (speed > 0) {
@@ -229,7 +206,26 @@ void controlMotor(int speed) {
 }
 
 void controlServo(int angle) {
-  // Ограничиваем угол, чтобы не сломать механизм
-  angle = constrain(angle, 45, 135); 
+  angle = constrain(angle, 45, 135);
   myServo.write(angle);
+}
+
+void printX() {
+  Wire.beginTransmission(ADDR);
+  Wire.write(0x2A | 0x80);
+  Wire.endTransmission(false);
+
+  Wire.requestFrom(ADDR, 2);
+  if (Wire.available() >= 2) {
+    uint8_t l = Wire.read();
+    uint8_t h = Wire.read();
+    currentX = (int16_t)((h << 8) | l);
+    smoothX = (smoothX * 0.9) + (currentX * 0.1);
+  }
+
+  if (millis() - lastPrintTime > 200) {
+    Serial.print("X-axis smoothed: ");
+    Serial.println(smoothX);
+    lastPrintTime = millis();
+  }
 }
