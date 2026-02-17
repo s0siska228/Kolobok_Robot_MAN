@@ -15,7 +15,7 @@ const int LED_PIN = 16;
 
 // --- СОСТОЯНИЕ ---
 unsigned long lastCommandTime = 0;
-const unsigned long SAFE_TIMEOUT = 60000; // Уменьшил до 3 сек для надежности
+const unsigned long SAFE_TIMEOUT = 60000;
 bool firstCommandReceived = false;
 bool manualSos = false;
 bool safeModeActive = false;
@@ -32,7 +32,7 @@ Servo myServo;
 void handleSOSPattern() {
   static unsigned long lastUpdate = 0;
   static int step = 0;
-  const int timings[] = {200,200, 200,200, 200,200, 600,200, 600,200, 600,200, 200,200, 200,200, 200,1000};
+  const int timings[] = {200,200, 200,200, 200,200,  600,200, 600,200, 600,200,  200,200, 200,200, 200,1000}; // . . . _ _ _ . . .
   
   if (manualSos || safeModeActive) {
     if (millis() - lastUpdate > timings[step]) {
@@ -152,7 +152,7 @@ void loop() {
     if (!safeModeActive) {
       safeModeActive = true;
       stopRobot();
-      Serial.println("Connection Lost - Stopped");
+      Serial.println("Соединение потеряно");
     }
   }
 }
