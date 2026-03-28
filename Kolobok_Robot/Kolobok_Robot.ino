@@ -14,10 +14,22 @@ const int SERVO_PIN = 13;
 const int LED_PIN = 16;
 
 unsigned long lastCommandTime = 0;
-const unsigned long SAFE_TIMEOUT = 60000;
+const unsigned long SAFE_TIMEOUT = 2000;
 bool firstCommandReceived = false;
 bool manualSos = false;
 bool safeModeActive = false;
+
+float Kp = 0;
+float Kd = 0;
+float currentAngle = 0;
+float targetAngle = 0;
+float error = 0;
+float prevError = 0;
+unsigned long lastPIDTime = 0;
+const int PID_SAMPLE_TIME = 10;
+float diff = 0;
+int out = 0;
+bool isBalansing = false;
 
 extern const char index_html[] PROGMEM;
 
@@ -44,12 +56,28 @@ void setup() {
   WiFi.softAP(ssid, password);
   server.on("/", []() {
     server.send(200, "text/html", index_html);
-  }); 
+  });
   server.on("/getAllData", []() {
-    lastCommandTime = millis(); 
+    lastCommandTime = millis();
     safeModeActive = false;
     String angle = String(mpu.getAngleX()) + "," + String(mpu.getAngleY()) + "," + String(mpu.getTemp());
     server.send(200, "text/plain", angle);
+  });
+  server.on("/setKp", []() {
+    if (server.hasArg("val")) {
+      Kp = server.arg("val").toFloat();
+      Serial.print("New Kp: ");
+      Serial.println(Kp);
+    }
+    server.send(200, "text/plain", "OK");
+  });
+  server.on("/setKd", []() {
+    if (server.hasArg("val")) {
+      Kd = server.arg("val").toFloat();
+      Serial.print("New Kd: ");
+      Serial.println(Kd);
+    }
+    server.send(200, "text/plain", "OK");
   });
   server.on("/action", handleAction);
   server.begin();
@@ -60,6 +88,21 @@ void loop() {
   server.handleClient();
   handleSOSPattern();
   connectionCheck();
+  if (isBalansing && !manualSos && !safeModeActive) balancePID();
+}
+
+// PID-стабилизация
+void balancePID() {
+  if (millis() - lastPIDTime < PID_SAMPLE_TIME) return;
+  lastPIDTime = millis();
+  isBalansing = true;
+  currentAngle = mpu.getAngleX();
+  error = targetAngle - currentAngle;
+  diff = error - prevError;
+  out = 90 - (error * Kp) - (diff * Kd);
+  out = constrain(out, 45, 135);
+  myServo.write(out);
+  prevError = error;
 }
 
 // Логика SOS-сигнала
@@ -111,6 +154,7 @@ void handleAction() {
     if (abs(s) < 15) {
       stopRobot();
     } else {
+      isBalansing = false;
       digitalWrite(IN1_PIN, s > 0);
       digitalWrite(IN2_PIN, s < 0);
       analogWrite(ENA_PIN, abs(s));
@@ -125,5 +169,5 @@ void stopRobot() {
   analogWrite(ENA_PIN, 0);
   digitalWrite(IN1_PIN, LOW);
   digitalWrite(IN2_PIN, LOW);
-  myServo.write(90);
+  isBalansing = true;
 }

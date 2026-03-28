@@ -1,57 +1,125 @@
 const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML><html><head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>KOLOBOK CONTROL</title>
   <style>
-    body { font-family: sans-serif; background-color: #1a1a1a; color: white; text-align: center; margin: 0; display: flex; flex-direction: column; align-items: center; height: 100vh; justify-content: space-between; padding: 40px 0; box-sizing: border-box;}
-    h2 { color: #00e676; margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 1px;}
-    .telemetry {
-        margin: 10px 0;
+    body { 
+      font-family: sans-serif; background-color: #1a1a1a; color: white; 
+      text-align: center; margin: 0; display: flex; flex-direction: column; 
+      align-items: center; height: 100vh; justify-content: space-between; 
+      padding: 40px 0; box-sizing: border-box;
     }
+    h2 { color: #00e676; margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 1px; }
+    
+    .kp-panel { margin: 10px 0; display: flex; gap: 8px; justify-content: center; }
+    #kp-input { 
+      padding: 8px; border-radius: 5px; border: 1px solid #00e676; 
+      background: #2d2d2d; color: white; width: 100px; text-align: center;
+    }
+    #kp-send-btn { 
+      padding: 8px 15px; border-radius: 5px; border: none; 
+      background: #00e676; color: black; font-weight: bold; cursor: pointer; 
+    }
+    
+    .kd-panel { margin: 10px 0; display: flex; gap: 8px; justify-content: center; }
+    #kd-input { 
+      padding: 8px; border-radius: 5px; border: 1px solid #00e676; 
+      background: #2d2d2d; color: white; width: 100px; text-align: center;
+    }
+    #kd-send-btn { 
+      padding: 8px 15px; border-radius: 5px; border: none; 
+      background: #00e676; color: black; font-weight: bold; cursor: pointer; 
+    }
+    
+    .telemetry { margin: 10px 0; }
     #angle-x-display, #angle-y-display, #temp-display {
-        font-size: 22px; /* Чуть меньше, чтобы влезло три строки */
-        font-weight: bold;
-        line-height: 1.2;
+      font-size: 22px; font-weight: bold; line-height: 1.2;
     }
-    #joystick-container { width: 220px; height: 220px; border: 3px solid #00e676; border-radius: 50%; position: relative; touch-action: none; background: radial-gradient(circle, rgba(0,230,118,0.05) 0%, rgba(0,0,0,0) 70%);}
-    #joystick-stick { width: 70px; height: 70px; background: #00e676; border-radius: 50%; position: absolute; left: 50%; top: 50%; margin: -35px 0 0 -35px; box-shadow: 0 0 20px #00e676; cursor: pointer;}
-    .sos-panel { background: #2d2d2d; padding: 12px 25px; border-radius: 40px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);}
-    .sos-panel span { font-weight: bold; font-size: 16px; letter-spacing: 1px;}
+
+    #joystick-container { 
+      width: 220px; height: 220px; border: 3px solid #00e676; border-radius: 50%; 
+      position: relative; touch-action: none; 
+      background: radial-gradient(circle, rgba(0,230,118,0.05) 0%, rgba(0,0,0,0) 70%);
+    }
+    #joystick-stick { 
+      width: 70px; height: 70px; background: #00e676; border-radius: 50%; 
+      position: absolute; left: 50%; top: 50%; margin: -35px 0 0 -35px; 
+      box-shadow: 0 0 20px #00e676; cursor: pointer;
+    }
+
+    .sos-panel { 
+      background: #2d2d2d; padding: 12px 25px; border-radius: 40px; 
+      display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .sos-panel span { font-weight: bold; font-size: 16px; letter-spacing: 1px; }
+    
     .switch { position: relative; width: 60px; height: 32px; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; border-radius: 32px; transition: .3s; }
-    .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 4px; bottom: 4px; background-color: white; border-radius: 50%; transition: .3s; }
+    .slider { 
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; 
+      background-color: #444; border-radius: 32px; transition: .3s; 
+    }
+    .slider:before { 
+      position: absolute; content: ""; height: 24px; width: 24px; 
+      left: 4px; bottom: 4px; background-color: white; border-radius: 50%; transition: .3s; 
+    }
     input:checked + .slider { background-color: #ff3d00; }
     input:checked + .slider:before { transform: translateX(28px); }
+    
     #status { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; }
   </style>
-</head><body>
+</head>
+<body>
   <h2>Управление Колобком</h2>
+
+  <div class="k-panel">
+    <input type="number" id="kp-input" placeholder="Kp" step="0.1">
+    <button id="kp-send-btn">ОК</button>
+    <input type="number" id="kd-input" placeholder="Kd" step="0.1">
+    <button id="kd-send-btn">ОК</button>
+  </div>
+
   <div class="telemetry">
     <div id="angle-x-display">Угол X: 0&deg;</div>
     <div id="angle-y-display">Угол Y: 0&deg;</div>
     <div id="temp-display">Темп: 0&deg;C</div>
   </div>
-  <div id="joystick-container"><div id="joystick-stick"></div></div>
+
+  <div id="joystick-container">
+    <div id="joystick-stick"></div>
+  </div>
+
   <div class="sos-panel">
     <span>РЕЖИМ SOS</span>
-    <label class="switch"><input type="checkbox" id="sos-btn"><span class="slider"></span></label>
+    <label class="switch">
+      <input type="checkbox" id="sos-btn">
+      <span class="slider"></span>
+    </label>
   </div>
+
   <div id="status">СВЯЗЬ...</div>
+
 <script>
-  let container = document.getElementById("joystick-container")
+  let container = document.getElementById("joystick-container");
   let stick = document.getElementById("joystick-stick");
-  let statusText = document.getElementById("status") 
+  let statusText = document.getElementById("status");
   let sosBtn = document.getElementById("sos-btn");
   let angleXText = document.getElementById("angle-x-display");
   let angleYText = document.getElementById("angle-y-display");
   let TempText = document.getElementById("temp-display");
+  let kpInput = document.getElementById("kp-input");
+  let kpSendBtn = document.getElementById("kp-send-btn");
+  let kdInput = document.getElementById("kd-input");
+  let kdSendBtn = document.getElementById("kd-send-btn");
+
   let isDragging = false, maxR = 110, lastSend = 0;
 
-  // ОПРОСЫ
+  // ОПРОСЫ ТЕЛЕМЕТРИИ
   setInterval(() => {
-      fetch('/getAllData').then(r => r.text()).then(data => {
-
+    fetch('/getAllData').then(r => r.text()).then(data => {
       let parts = data.split(',');
       let x = parseInt(parts[0]);
       let y = parseInt(parts[1]);
@@ -74,8 +142,27 @@ const char index_html[] PROGMEM = R"rawliteral(
     });
   }, 150);
 
+  // ОБРАБОТКА KP
+  kpSendBtn.onclick = () => {
+    let val = kpInput.value;
+    if (val === "") return alert("Введите значение!");
+    fetch("/setKp?val=" + val)
+      .then(r => { if(r.ok) kpSendBtn.style.background = "#00e676"; })
+      .catch(() => { kpSendBtn.style.background = "#ff3d00"; });
+  };
+    
+  // ОБРАБОТКА KD
+  kdSendBtn.onclick = () => {
+    let val = kdInput.value;
+    if (val === "") return alert("Введите значение!");
+    fetch("/setKd?val=" + val)
+      .then(r => { if(r.ok) kdSendBtn.style.background = "#00e676"; })
+      .catch(() => { kdSendBtn.style.background = "#ff3d00"; });
+  };
+    
+  // ДЖОЙСТИК
   sosBtn.onchange = () => fetch("/action?sos=" + (sosBtn.checked ? 1 : 0));
-
+  
   function sendAction(s, t, force = false) {
     let now = Date.now();
     if (force || now - lastSend > 60) {
@@ -101,7 +188,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     if(!isDragging) return;
     isDragging = false; 
     stick.style.transform = "translate(0,0)"; 
-    sendAction(0, 90, true); // Мгновенный принудительный стоп
+    sendAction(0, 90, true);
   };
-</script></body></html>
+</script>
+</body>
+</html>
 )rawliteral";
