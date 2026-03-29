@@ -14,26 +14,37 @@ const char index_html[] PROGMEM = R"rawliteral(
     }
     h2 { color: #00e676; margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 1px; }
     
-    .kp-panel { margin: 10px 0; display: flex; gap: 8px; justify-content: center; }
-    #kp-input { 
-      padding: 8px; border-radius: 5px; border: 1px solid #00e676; 
-      background: #2d2d2d; color: white; width: 100px; text-align: center;
+    .kp-panel { 
+      margin: 15px 0; 
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 10px; 
+      justify-content: center; 
+      width: 100%;
+      max-width: 400px;
     }
-    #kp-send-btn { 
-      padding: 8px 15px; border-radius: 5px; border: none; 
-      background: #00e676; color: black; font-weight: bold; cursor: pointer; 
+
+    #kp-input, #kd-input, #ki-input {
+      padding: 10px 8px;
+      border-radius: 5px; 
+      border: 1px solid #00e676;
+      background: #2d2d2d; 
+      color: white; 
+      width: 88px; 
+      text-align: center;
     }
-    
-    .kd-panel { margin: 10px 0; display: flex; gap: 8px; justify-content: center; }
-    #kd-input { 
-      padding: 8px; border-radius: 5px; border: 1px solid #00e676; 
-      background: #2d2d2d; color: white; width: 100px; text-align: center;
+
+    #kp-send-btn, #kd-send-btn, #ki-send-btn {
+      padding: 10px 16px; 
+      border-radius: 5px; 
+      border: none;
+      background: #00e676; 
+      color: black; 
+      font-weight: bold; 
+      cursor: pointer;
+      white-space: nowrap;
     }
-    #kd-send-btn { 
-      padding: 8px 15px; border-radius: 5px; border: none; 
-      background: #00e676; color: black; font-weight: bold; cursor: pointer; 
-    }
-    
+
     .telemetry { margin: 10px 0; }
     #angle-x-display, #angle-y-display, #temp-display {
       font-size: 22px; font-weight: bold; line-height: 1.2;
@@ -75,11 +86,13 @@ const char index_html[] PROGMEM = R"rawliteral(
 <body>
   <h2>Управление Колобком</h2>
 
-  <div class="k-panel">
+  <div class="kp-panel">
     <input type="number" id="kp-input" placeholder="Kp" step="0.1">
     <button id="kp-send-btn">ОК</button>
     <input type="number" id="kd-input" placeholder="Kd" step="0.1">
     <button id="kd-send-btn">ОК</button>
+    <input type="number" id="ki-input" placeholder="Ki" step="0.1">
+    <button id="ki-send-btn">ОК</button>
   </div>
 
   <div class="telemetry">
@@ -109,11 +122,14 @@ const char index_html[] PROGMEM = R"rawliteral(
   let sosBtn = document.getElementById("sos-btn");
   let angleXText = document.getElementById("angle-x-display");
   let angleYText = document.getElementById("angle-y-display");
-  let TempText = document.getElementById("temp-display");
+  let tempText = document.getElementById("temp-display");
+
   let kpInput = document.getElementById("kp-input");
   let kpSendBtn = document.getElementById("kp-send-btn");
   let kdInput = document.getElementById("kd-input");
   let kdSendBtn = document.getElementById("kd-send-btn");
+  let kiInput = document.getElementById("ki-input");
+  let kiSendBtn = document.getElementById("ki-send-btn");
 
   let isDragging = false, maxR = 110, lastSend = 0;
 
@@ -131,8 +147,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       angleYText.innerHTML = "Угол Y: " + y + "&deg;";
       angleYText.style.color = Math.abs(y) < 25 ? "#00e676" : "#ff3d00";
 
-      TempText.innerHTML = "Температура: " + temp + "&deg;";
-      TempText.style.color = temp > 50 ? "#ff3d00" : "#00e676";
+      tempText.innerHTML = "Температура: " + temp + "&deg;";
+      tempText.style.color = temp > 50 ? "#ff3d00" : "#00e676";
       
       statusText.innerText = "КОМАНДЫ ДОХОДЯТ";
       statusText.style.color = "#555";
@@ -158,6 +174,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     fetch("/setKd?val=" + val)
       .then(r => { if(r.ok) kdSendBtn.style.background = "#00e676"; })
       .catch(() => { kdSendBtn.style.background = "#ff3d00"; });
+  };
+
+  // ОБРАБОТКА KI
+  kiSendBtn.onclick = () => {
+    let val = kiInput.value;
+    if (val === "") return alert("Введите значение!");
+    fetch("/setKi?val=" + val)
+      .then(r => { if(r.ok) kiSendBtn.style.background = "#00e676"; })
+      .catch(() => { kiSendBtn.style.background = "#ff3d00"; });
   };
     
   // ДЖОЙСТИК

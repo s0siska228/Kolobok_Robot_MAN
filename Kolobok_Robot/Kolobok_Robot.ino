@@ -19,15 +19,17 @@ bool firstCommandReceived = false;
 bool manualSos = false;
 bool safeModeActive = false;
 
-float Kp = 0;
-float Kd = 0;
+float Kp = 0.21;
+float Kd = 0.02;
+float Ki = 0.46;
 float currentAngle = 0;
 float targetAngle = 0;
 float error = 0;
 float prevError = 0;
 unsigned long lastPIDTime = 0;
-const int PID_SAMPLE_TIME = 10;
-float diff = 0;
+const int dt = 10;
+float derivative = 0;
+float integral = 0;
 int out = 0;
 bool isBalansing = false;
 
@@ -79,6 +81,14 @@ void setup() {
     }
     server.send(200, "text/plain", "OK");
   });
+  server.on("/setKi", []() {
+    if (server.hasArg("val")) {
+      Ki = server.arg("val").toFloat();
+      Serial.print("New Ki: ");
+      Serial.println(Ki);
+    }
+    server.send(200, "text/plain", "OK");
+  });
   server.on("/action", handleAction);
   server.begin();
 }
@@ -93,14 +103,21 @@ void loop() {
 
 // PID-стабилизация
 void balancePID() {
-  if (millis() - lastPIDTime < PID_SAMPLE_TIME) return;
+  if (millis() - lastPIDTime < dt) return;
   lastPIDTime = millis();
-  isBalansing = true;
+
   currentAngle = mpu.getAngleX();
   error = targetAngle - currentAngle;
-  diff = error - prevError;
-  out = 90 - (error * Kp) - (diff * Kd);
+
+  float dt_sec = dt / 1000.0f;
+  derivative = (error - prevError) / dt_sec;       
+  integral += error * dt_sec;             
+
+  if (abs(integral) > 50) integral = 50 * (integral > 0 ? 1 : -1);
+
+  out = 90 - (error * Kp) - (derivative * Kd) - (integral * Ki);
   out = constrain(out, 45, 135);
+
   myServo.write(out);
   prevError = error;
 }
