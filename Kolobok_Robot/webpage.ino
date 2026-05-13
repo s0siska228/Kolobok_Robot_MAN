@@ -133,6 +133,11 @@ const char index_html[] PROGMEM = R"rawliteral(
 
   let isDragging = false, maxR = 110, lastSend = 0;
 
+  // Значения по умолчанию при загрузке страницы
+  kpInput.value = 0.21;
+  kdInput.value = 0.02;
+  kiInput.value = 0.46;
+
   // ОПРОСЫ ТЕЛЕМЕТРИИ
   setInterval(() => {
     fetch('/getAllData').then(r => r.text()).then(data => {
